@@ -1,0 +1,203 @@
+openapi: 3.0.1
+info:
+  title: Social Secrets
+  description: "Social Secrets"
+  version: 0.0.1
+  contact:
+    name: Mark Turner
+    email: "mark.turner0@gmail.com"
+servers:
+  - url: http://localhost:8080
+    description: Localhost
+    variables:
+      basePath:
+        default: v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    GeneralError:
+      type: object
+      properties:
+        message:
+          type: string
+    Credentials:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: "rob5000"
+        password:
+          type: string
+          example: "robsbirthday"
+    AuthTokens:
+      type: object
+      required:
+        - permissionToken
+      properties:
+        permissionToken:
+          type: string
+          example: "1|friend|1601106944853|IAmSigned"
+        authToken:
+          type: string
+          example: "1|auth|1601106944853|IAmSigned"
+    Secret:
+      type: object
+      required:
+        - id
+        - secretText
+      properties:
+        id:
+          type: integer
+          minimum: 0
+          example: 1234
+        secretText:
+          type: string
+          example: "My secret text"
+    SecretCreate:
+      type: object
+      required:
+        - secretText
+      properties:
+        secretText:
+          type: string
+          example: "My secret text"
+    SharedSecret:
+      type: object
+      required:
+        - userId
+        - secretId
+      properties:
+        userId:
+          type: integer
+          minimum: 0
+          example: 1234
+        secretId:
+          type: integer
+          minimum: 0
+          example: 1234
+    ShareSecret:
+      type: object
+      required:
+        - userId
+      properties:
+        userId:
+          type: integer
+          minimum: 0
+          example: 1234
+  parameters:
+    userIdParam:
+      name: userId
+      in: path
+      description: User Id in path
+      required: true
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+    secretIdParam:
+      name: secretId
+      in: path
+      description: Secret Id in path
+      required: true
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+  responses:
+    NotFound:
+      description: Resource Not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
+    BadRequest:
+      description: Bad Request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
+    GeneralError:
+      description: General Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
+security:
+  - bearerAuth: []
+paths:
+  /login:
+    post:
+      description: Get friend token and/or login.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+      responses:
+        '200':
+          description: Auth Token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /user/{userId}/secrets:
+    parameters:
+      - $ref: '#/components/parameters/userIdParam'
+    get:
+      description: Returns all secrets owned by a user
+      responses:
+        '200':
+          description: A list of secrets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Secret'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+    post:
+      description: Create a Secret.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretCreate'
+      responses:
+        '200':
+          description: New Secret.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Secret'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /user/{userId}/secrets/{secretId}/permission:
+    parameters:
+      - $ref: '#/components/parameters/userIdParam'
+      - $ref: '#/components/parameters/secretIdParam'
+    post:
+      description: Give another user permission to view a secret
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretCreate'
+      responses:
+        '201':
+          description: Successfully created permission.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
