@@ -2,7 +2,7 @@ package masko101.sociallogin.services
 
 import cats.effect.IO
 import masko101.sociallogin.apimodel.{AuthToken, AuthTokens, Credentials}
-import masko101.sociallogin.model.User
+import masko101.sociallogin.model.UserEntity
 import masko101.sociallogin.repository.UserRepository
 
 object AuthenticationService {
@@ -19,14 +19,14 @@ class AuthenticationService(userRepository: UserRepository) {
     }
   }
 
-  def validateAuthToken(token: AuthToken): IO[Option[User]] = {
+  def validateAuthToken(token: AuthToken): IO[Option[UserEntity]] = {
     if (token.validate(AuthToken.AUTH_TOKEN))
       userRepository.findById(token.userId)
     else
       IO(None)
   }
 
-  private def createFriendToken(a: User) = {
+  private def createFriendToken(a: UserEntity) = {
     s"${a.id}:friend:${getExpires.toString}:IAmSigned"
   }
 

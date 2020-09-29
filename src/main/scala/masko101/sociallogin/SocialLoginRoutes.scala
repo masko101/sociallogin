@@ -2,28 +2,44 @@ package masko101.sociallogin
 
 import cats.effect.{IO, Sync}
 import cats.implicits._
-import masko101.sociallogin.apimodel.{Credentials, GeneralError}
-import masko101.sociallogin.services.AuthenticationService
+import masko101.sociallogin.apimodel.{Credentials, GeneralError, Secret, SecretCreate}
+import masko101.sociallogin.services.{AuthenticationService, SecretService}
 import org.http4s.{AuthedRoutes, HttpRoutes}
 import org.http4s.circe._
 import io.circe.syntax._
 import io.circe.generic.auto._
 import org.http4s.dsl.Http4sDsl
 import masko101.sociallogin.apimodel.CirceEncodersDecoders._
-import masko101.sociallogin.model.User
+import masko101.sociallogin.model.{SecretCreateEntity, UserEntity}
 
 object SocialLoginRoutes {
 
-  def jokeRoutes[F[_]: Sync](J: Jokes[F]): AuthedRoutes[User, F] = {
-    val dsl = new Http4sDsl[F]{}
+  def secretRoutes(secretService: SecretService): AuthedRoutes[UserEntity, IO] = {
+    val dsl: Http4sDsl[IO] = new Http4sDsl[IO]{}
     import dsl._
-    AuthedRoutes.of[User, F] {
-      case GET -> Root / "joke" as user =>
-        println(s"Joke user: $user")
+    AuthedRoutes.of[UserEntity, IO] {
+      case GET -> Root / "secrets" as user =>
         for {
-          joke <- J.get
-          resp <- Ok(joke)
+          secrets <- secretService.getUserOwnedSecrets(user)
+          resp <- Ok(secrets.map(s => Secret(s.id, s.ownerId, s.secretText)).asJson)
         } yield resp
+      case GET -> Root / "secrets" / secretIdString as user =>
+        try {
+          val secretId = secretIdString.toLong
+          for {
+            secrets <- secretService.getUserOwnedSecret(user, secretId)
+            resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
+          } yield resp
+        } catch {
+          case nfe: NumberFormatException =>
+            BadRequest()
+        }
+      case authReq@POST -> Root / "secrets" as user =>
+        for {
+          secretCreate <- authReq.req.as[SecretCreate]
+          secret <- secretService.createNewSecret(SecretCreateEntity(user.id, secretCreate.secretText))
+          response <- Ok(Secret(secret.id, secret.ownerId, secret.secretText))
+        } yield response
     }
   }
 
