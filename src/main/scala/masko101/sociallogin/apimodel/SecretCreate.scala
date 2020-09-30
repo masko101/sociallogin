@@ -1,6 +1,5 @@
 package masko101.sociallogin.apimodel
 
-
 /**
  * @param secretText  for example: ''My secret text''
  */

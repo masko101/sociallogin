@@ -3,7 +3,7 @@ package masko101.sociallogin
 import java.time.OffsetDateTime
 
 import cats.effect.IO
-import masko101.sociallogin.apimodel.{AuthToken, AuthTokens}
+import masko101.sociallogin.apimodel.AuthTokens
 import org.http4s._
 import org.http4s.implicits._
 import org.specs2.matcher.MatchResult
@@ -13,7 +13,7 @@ import masko101.sociallogin.apimodel.CirceEncodersDecoders._
 import masko101.sociallogin.repository.UserRepository
 import masko101.sociallogin.services.AuthenticationService
 import fs2.Stream
-import masko101.sociallogin.model.UserEntity
+import masko101.sociallogin.model.{AuthToken, UserEntity}
 
 class LoginSpec extends org.specs2.mutable.Specification {
 
@@ -52,7 +52,7 @@ class LoginSpec extends org.specs2.mutable.Specification {
     loginReturn.status must beEqualTo(Status.Ok)
     val retAuthTokens = loginReturn.as[AuthTokens].unsafeRunSync()
     retAuthTokens.authToken must beNone
-    val maybeFriendToken = AuthToken.parseEncodedToken(retAuthTokens.friendToken)
+    val maybeFriendToken = AuthToken.parseEncodedToken(retAuthTokens.permissionToken)
     maybeFriendToken must beSome(haveClass[AuthToken])
     maybeFriendToken.get.userId must beEqualTo(1)
     maybeFriendToken.get.tokenType must beEqualTo("friend")
@@ -77,7 +77,7 @@ class LoginSpec extends org.specs2.mutable.Specification {
     maybeAuthToken.get.expires.toInstant.toEpochMilli must beBetween(milliMin, milliMax)
     maybeAuthToken.get.signature must beEqualTo("IAmSigned")
 
-    val maybeFriendToken = AuthToken.parseEncodedToken(retAuthTokens.friendToken)
+    val maybeFriendToken = AuthToken.parseEncodedToken(retAuthTokens.permissionToken)
     maybeFriendToken must beSome(haveClass[AuthToken])
     maybeFriendToken.get.userId must beEqualTo(1)
     maybeFriendToken.get.tokenType must beEqualTo(AuthToken.FRIEND_TOKEN)

@@ -36,10 +36,11 @@ components:
         password:
           type: string
           example: "robsbirthday"
-        permissionToken:
-          type: string
-          description: "Base 64 encoded token string"
-          example: "MTpmcmllbmQ6MTYwMTQwODk2MjczODo="
+          #TODO - Remove if the friend token is sent as auth header bearer token
+#        permissionToken:
+#          type: string
+#          description: "Base 64 encoded token string"
+#          example: "MTpmcmllbmQ6MTYwMTQwODk2MjczODo="
     AuthTokens:
       type: object
       required:
@@ -61,6 +62,12 @@ components:
       properties:
         id:
           type: integer
+          format: int64
+          minimum: 0
+          example: 1234
+        ownerId:
+          type: integer
+          format: int64
           minimum: 0
           example: 1234
         secretText:
@@ -82,6 +89,7 @@ components:
       properties:
         userId:
           type: integer
+          format: int64
           minimum: 0
           example: 1234
         secretId:
@@ -95,6 +103,7 @@ components:
       properties:
         userId:
           type: integer
+          format: int64
           minimum: 0
           example: 1234
   parameters:
@@ -105,7 +114,7 @@ components:
       required: true
       schema:
         type: integer
-        format: int32
+        format: int64
         minimum: 1
     secretIdParam:
       name: secretId
@@ -114,9 +123,15 @@ components:
       required: true
       schema:
         type: integer
-        format: int32
+        format: int64
         minimum: 1
   responses:
+    NotAuthorised:
+      description: Not Authorised.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
     NotFound:
       description: Resource Not found.
       content:
@@ -136,11 +151,11 @@ components:
           schema:
             $ref: '#/components/schemas/GeneralError'
 security:
-  - bearerAuth: []
+  - bearerAuth: [ ]
 paths:
   /login:
     post:
-      description: Get friend token and/or login.
+      description: Get friend token and/or auth token. Auth token is only returned if friend token is supplied as the bearer token to the auth call
       requestBody:
         content:
           application/json:
@@ -169,6 +184,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -187,22 +204,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
+        '404':
+          $ref: '#/components/responses/NotFound'
         default:
           $ref: '#/components/responses/GeneralError'
-  /user/{userId}/secrets/{secretId}/permission:
+  #TODO - Review these URLs
+  /user/{userId}/sharedsecrets:
+    parameters:
+      - $ref: '#/components/parameters/userIdParam'
+    get:
+      description: Returns all secrets shared with this user
+      responses:
+        '200':
+          description: A list of secrets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /user/{userId}/sharedsecrets/{secretId}:
     parameters:
       - $ref: '#/components/parameters/userIdParam'
       - $ref: '#/components/parameters/secretIdParam'
+    get:
+      description: Returns a specfied secret if it is shared with this user.
+      responses:
+        '200':
+          description: A list of secrets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
     post:
-      description: Give another user permission to view a secret
+      description: Share a secret with another user.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SecretCreate'
+              $ref: '#/components/schemas/ShareSecret'
       responses:
         '201':
-          description: Successfully created permission.
+          description: Successfully shared secret.
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
         '404':
           $ref: '#/components/responses/NotFound'
         default:

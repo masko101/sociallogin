@@ -1,4 +1,4 @@
-package masko101.sociallogin.apimodel
+package masko101.sociallogin.model
 
 import java.time.{Instant, OffsetDateTime, ZoneId}
 import java.util.Base64

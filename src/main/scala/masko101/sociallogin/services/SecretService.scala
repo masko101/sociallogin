@@ -7,12 +7,12 @@ import masko101.sociallogin.repository.SecretRepository
 
 class SecretService(secretRepository: SecretRepository) {
 
-  def getUserOwnedSecret(authUser: UserEntity, secretId: Long): IO[Option[SecretEntity]] = {
-    secretRepository.findById(secretId)
+  def getUserOwnedSecret(userId: Long, secretId: Long): IO[Option[SecretEntity]] = {
+    secretRepository.findById(secretId).map(_.filter(_.ownerId == userId))
   }
 
-  def getUserOwnedSecrets(authUser: UserEntity): IO[List[SecretEntity]] = {
-    secretRepository.findByUserId(authUser.id)
+  def getUserOwnedSecrets(userId: Long): IO[Set[SecretEntity]] = {
+    secretRepository.findByUserId(userId)
   }
 
   def createNewSecret(secret: SecretCreateEntity): IO[SecretEntity] = {

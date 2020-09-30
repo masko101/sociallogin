@@ -1,6 +1,5 @@
 package masko101.sociallogin.apimodel
 
-
 /**
  * @param message 
  */

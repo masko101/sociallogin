@@ -1,15 +1,12 @@
 package masko101.sociallogin
 
-import java.util.Base64
-
 import cats.data.{Kleisli, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import fs2.Stream
-import masko101.sociallogin.apimodel.AuthToken
-import masko101.sociallogin.model.UserEntity
-import masko101.sociallogin.repository.{SecretRepository, UserRepository}
-import masko101.sociallogin.services.{AuthenticationService, SecretService}
+import masko101.sociallogin.model.{AuthToken, UserEntity}
+import masko101.sociallogin.repository.{SecretPermissionRepository, SecretRepository, UserRepository}
+import masko101.sociallogin.services.{AuthenticationService, SecretService, SharedSecretService}
 import org.http4s.Request
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
@@ -29,7 +26,7 @@ object SocialLoginServer {
     })
   }
 
-  def authUser(authService: AuthenticationService): Kleisli[OptionT[IO, *], Request[IO], UserEntity] =
+  def authTokenUser(authService: AuthenticationService): Kleisli[OptionT[IO, *], Request[IO], UserEntity] =
     Kleisli { req: Request[IO] =>
       getTokenFromHeader(req).flatMap(t => {
         AuthToken.parseEncodedToken(t).map(t => authService.validateToken(t, AuthToken.AUTH_TOKEN))
@@ -51,9 +48,11 @@ object SocialLoginServer {
       userRepo = new UserRepository()
       authService = new AuthenticationService(userRepo)
       authenticateWithFriendPermissionMiddleware = AuthMiddleware.withFallThrough(permissionUser(authService))
-      authedUserActionMiddleware = AuthMiddleware(authUser(authService))
+      authedUserActionMiddleware = AuthMiddleware(authTokenUser(authService))
       secretRepo = new SecretRepository()
       secretService = new SecretService(secretRepo)
+      secretPermissionRepo = new SecretPermissionRepository()
+      sharedSecretService = new SharedSecretService(secretPermissionRepo, secretRepo)
       // Combine Service Routes into an HttpApp.
       // Can also be done via a Router if you
       // want to extract a segments not checked
@@ -62,7 +61,7 @@ object SocialLoginServer {
         authenticateWithFriendPermissionMiddleware(SocialLoginRoutes.loginRoutesWithFriendPermission(authService))  <+>
         SocialLoginRoutes.loginRoutesNoFriendPermission(authService)  <+>
         SocialLoginRoutes.helloWorldRoutes[IO](helloWorldAlg) <+>
-        authedUserActionMiddleware(SocialLoginRoutes.secretRoutes(secretService))
+        authedUserActionMiddleware(SocialLoginRoutes.secretRoutes(secretService, sharedSecretService))
       ).orNotFound
 
       // With Middlewares in place

@@ -3,8 +3,8 @@ package masko101.sociallogin.services
 import java.time.OffsetDateTime
 
 import cats.effect.IO
-import masko101.sociallogin.apimodel.{AuthToken, AuthTokens, Credentials}
-import masko101.sociallogin.model.UserEntity
+import masko101.sociallogin.apimodel.{AuthTokens, Credentials}
+import masko101.sociallogin.model.{AuthToken, UserEntity}
 import masko101.sociallogin.repository.UserRepository
 
 object AuthenticationService {
