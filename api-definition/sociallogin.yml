@@ -36,6 +36,10 @@ components:
         password:
           type: string
           example: "robsbirthday"
+        permissionToken:
+          type: string
+          description: "Base 64 encoded token string"
+          example: "MTpmcmllbmQ6MTYwMTQwODk2MjczODo="
     AuthTokens:
       type: object
       required:
@@ -43,9 +47,11 @@ components:
       properties:
         permissionToken:
           type: string
-          example: "1|friend|1601106944853|IAmSigned"
+          description: "Base 64 encoded token string"
+          example: "MTpmcmllbmQ6MTYwMTQwODk2MjczODo="
         authToken:
           type: string
+          description: "Base 64 encoded token string"
           example: "1|auth|1601106944853|IAmSigned"
     Secret:
       type: object

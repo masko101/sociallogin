@@ -1,5 +1,7 @@
 package masko101.sociallogin
 
+import java.util.Base64
+
 import cats.data.{Kleisli, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
@@ -20,21 +22,36 @@ import scala.concurrent.ExecutionContext.global
 
 object SocialLoginServer {
 
+  private def getTokenFromHeader(req: Request[IO]): Option[String] = {
+    req.headers.get(CaseInsensitiveString("Authorization")).map(h => {
+      //TODO - Replace with regex extraction
+      h.value.split(' ')(1)
+    })
+  }
+
+  def authUser(authService: AuthenticationService): Kleisli[OptionT[IO, *], Request[IO], UserEntity] =
+    Kleisli { req: Request[IO] =>
+      getTokenFromHeader(req).flatMap(t => {
+        AuthToken.parseEncodedToken(t).map(t => authService.validateToken(t, AuthToken.AUTH_TOKEN))
+      }).map(OptionT(_)).getOrElse(OptionT.none)
+    }
+
+  //TODO - find a better way to do this so that a bad token will return 401 not just a null authToken
+  def permissionUser(authService: AuthenticationService): Kleisli[OptionT[IO, *], Request[IO], UserEntity] =
+    Kleisli { req: Request[IO] =>
+      getTokenFromHeader(req).flatMap(t => {
+        AuthToken.parseEncodedToken(t).map(t => authService.validateToken(t, AuthToken.FRIEND_TOKEN))
+      }).map(OptionT(_)).getOrElse(OptionT.none)
+    }
+
   def stream(implicit T: Timer[IO], C: ContextShift[IO]): Stream[IO, Nothing] = {
-
-    def authUser(authService: AuthenticationService): Kleisli[OptionT[IO, *], Request[IO], UserEntity] =
-      Kleisli { req: Request[IO] =>
-        req.headers.get(CaseInsensitiveString("Authorization")).map(h => {
-          OptionT(authService.validateAuthToken(AuthToken.parseToken(h.value.split(' ')(1))))
-        }).getOrElse(OptionT.none)
-      }
-
     for {
       client <- BlazeClientBuilder[IO](global).stream
       helloWorldAlg = HelloWorld.impl[IO]
       userRepo = new UserRepository()
       authService = new AuthenticationService(userRepo)
-      authMiddleware = AuthMiddleware(authUser(authService))
+      authenticateWithFriendPermissionMiddleware = AuthMiddleware.withFallThrough(permissionUser(authService))
+      authedUserActionMiddleware = AuthMiddleware(authUser(authService))
       secretRepo = new SecretRepository()
       secretService = new SecretService(secretRepo)
       // Combine Service Routes into an HttpApp.
@@ -42,9 +59,10 @@ object SocialLoginServer {
       // want to extract a segments not checked
       // in the underlying routes.
       httpApp = (
-        SocialLoginRoutes.loginRoutes(authService)  <+>
+        authenticateWithFriendPermissionMiddleware(SocialLoginRoutes.loginRoutesWithFriendPermission(authService))  <+>
+        SocialLoginRoutes.loginRoutesNoFriendPermission(authService)  <+>
         SocialLoginRoutes.helloWorldRoutes[IO](helloWorldAlg) <+>
-        authMiddleware(SocialLoginRoutes.secretRoutes(secretService))
+        authedUserActionMiddleware(SocialLoginRoutes.secretRoutes(secretService))
       ).orNotFound
 
       // With Middlewares in place

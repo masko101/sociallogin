@@ -1,4 +1,4 @@
-package masko101.socialsecret
+package masko101.sociallogin
 
 import cats.effect.IO
 import fs2.Stream
@@ -13,7 +13,7 @@ import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.implicits._
 import org.specs2.matcher.MatchResult
-import org.specs2.specification.{BeforeAll, BeforeEach}
+import org.specs2.specification.BeforeEach
 
 class SecretSpec extends org.specs2.mutable.Specification with BeforeEach {
   sequential
@@ -31,7 +31,10 @@ class SecretSpec extends org.specs2.mutable.Specification with BeforeEach {
     "create returns the new secret" >> {
       secretCreateReturnsSuccess()
     }
-    "with valid secret id returns a secret" >> {
+    "get all returns a list of owned secrets" >> {
+      secretGetAllReturnsList()
+    }
+    "with valid secret id returns an owned secrets" >> {
       secretValidIdReturnsSecret()
     }
     "with invalid secret id returns bad request" >> {
@@ -55,6 +58,18 @@ class SecretSpec extends org.specs2.mutable.Specification with BeforeEach {
     val getSecret = Request[IO](Method.GET, Uri(path = s"/secrets/$id"))
     secretRoutes.orNotFound(AuthedRequest(userEntity, getSecret)).unsafeRunSync()
   }
+
+  private[this] def secretGetAllReturnsList(): MatchResult[Secret] = {
+    secretRepository.create(SecretCreateEntity(1, "My Secret 1"))
+    secretRepository.create(SecretCreateEntity(1, "My Secret 2"))
+    val secretResponse = retSecretsGet()
+    secretResponse.status must beEqualTo(Status.Ok)
+    val secrets = secretResponse.as[List[Secret]].unsafeRunSync()
+    secrets must haveSize(2)
+    secrets.head must beEqualTo(Secret(1L, 1L, "My Secret 1"))
+    secrets(1) must beEqualTo(Secret(2L, 1L, "My Secret 2"))
+  }
+
 
   private[this] def secretInvalidIdReturnsBadRequest(): MatchResult[Status] = {
     secretRepository.create(SecretCreateEntity(1, "My Secret 1"))

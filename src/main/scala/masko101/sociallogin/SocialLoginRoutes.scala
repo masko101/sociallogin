@@ -14,6 +14,7 @@ import masko101.sociallogin.model.{SecretCreateEntity, UserEntity}
 
 object SocialLoginRoutes {
 
+  //TODO - better error handling and responses
   def secretRoutes(secretService: SecretService): AuthedRoutes[UserEntity, IO] = {
     val dsl: Http4sDsl[IO] = new Http4sDsl[IO]{}
     import dsl._
@@ -31,7 +32,7 @@ object SocialLoginRoutes {
             resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
           } yield resp
         } catch {
-          case nfe: NumberFormatException =>
+          case _: NumberFormatException =>
             BadRequest()
         }
       case authReq@POST -> Root / "secrets" as user =>
@@ -55,14 +56,30 @@ object SocialLoginRoutes {
     }
   }
 
-  def loginRoutes(authService: AuthenticationService): HttpRoutes[IO] = {
+  def loginRoutesNoFriendPermission(authService: AuthenticationService): HttpRoutes[IO] = {
     val dsl = new Http4sDsl[IO]{}
     import dsl._
     HttpRoutes.of[IO] {
       case req@POST -> Root / "login" =>
         for {
           credentials <- req.as[Credentials]
-          authTokensOption <- authService.authenticate(credentials)
+          authTokensOption <- authService.authenticate(credentials, None)
+          response <- authTokensOption.map(a => Ok(a.asJson))
+            .getOrElse(BadRequest(GeneralError(Some("Invalid Username or Password")).asJson))
+        } yield {
+          response
+        }
+    }
+  }
+
+  def loginRoutesWithFriendPermission(authService: AuthenticationService): AuthedRoutes[UserEntity, IO] = {
+    val dsl = new Http4sDsl[IO]{}
+    import dsl._
+    AuthedRoutes.of[UserEntity, IO] {
+      case authedReq@POST -> Root / "login" as permissionUser =>
+        for {
+          credentials <- authedReq.req.as[Credentials]
+          authTokensOption <- authService.authenticate(credentials, Some(permissionUser))
           response <- authTokensOption.map(a => Ok(a.asJson))
             .getOrElse(BadRequest(GeneralError(Some("Invalid Username or Password")).asJson))
         } yield {

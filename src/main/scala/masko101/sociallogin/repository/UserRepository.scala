@@ -16,11 +16,12 @@ class UserRepository {
     userMap.put(poj.id, poj)
   }
 
-  def findById(id:Int): IO[Option[UserEntity]] = {
-    IO(userMap.get(id));
+  def findById(id:Long): IO[Option[UserEntity]] = {
+    IO(userMap.get(id))
   }
 
   def findByUserNameAndPassword(username:String, password: String): IO[Option[UserEntity]] = {
-    IO(userMap.find(u => u._2.username == username && u._2.password == password).map(_._2));
+    //TODO - Hash user posswords
+    IO(userMap.find(u => u._2.username == username && u._2.password == password).map(_._2))
   }
 }
