@@ -44,5 +44,5 @@ $ sbt test
 ## To view the API design
 Please open the file "api-definition/sociallogin.yml" in https://editor.swagger.io/
 
-##To test
+## To test
 To make it easier to test you can import the "Social Login.postman_collection.json" into Postman. 
