@@ -1,9 +1,8 @@
 package masko101.sociallogin
 
-import cats.effect.{IO, Sync}
-import cats.implicits._
+import cats.effect.IO
 import masko101.sociallogin.apimodel.{Credentials, GeneralError, Secret, SecretCreate, ShareSecret, SharedSecret}
-import masko101.sociallogin.services.{AuthenticationService, SecretService, SharedSecretService}
+import masko101.sociallogin.services.{AuthenticationService, NotAuthorisedException, NotFoundException, SecretService, SharedSecretService}
 import org.http4s.{AuthedRoutes, HttpRoutes, Response}
 import org.http4s.circe._
 import io.circe.syntax._
@@ -14,8 +13,8 @@ import masko101.sociallogin.model.{SecretCreateEntity, SharedSecretEntity, UserE
 
 object SocialLoginRoutes {
 
-  //TODO - replace with middleware
-  def checkUserIdAuthorised(reqUserId: String, authUser: UserEntity, f: Long => IO[Response[IO]]):
+  //TODO - replace with middleware for auth
+  def validateUserIdAndHandleErrors(reqUserId: String, authUser: UserEntity, f: Long => IO[Response[IO]]):
   IO[Response[IO]] = {
 
     val dsl: Http4sDsl[IO] = new Http4sDsl[IO] {}
@@ -24,13 +23,26 @@ object SocialLoginRoutes {
       val userId = reqUserId.toLong
       if (authUser.id != userId)
         Forbidden()
-      else
-        f(userId)
+      else {
+        //TODO - Better way to handle this.
+        f(userId).attempt.flatMap {
+          case Right(response) => IO.pure(response)
+          case Left(exception) =>
+            exception match {
+              case _: NumberFormatException =>
+                BadRequest()
+              case _: NotAuthorisedException =>
+                Forbidden()
+              case _: NotFoundException =>
+                NotFound()
+              case _: Throwable =>
+                InternalServerError()
+            }
+        }
+      }
     } catch {
       case _: NumberFormatException =>
         BadRequest()
-      case _: Throwable =>
-        InternalServerError()
     }
   }
 
@@ -40,81 +52,53 @@ object SocialLoginRoutes {
     import dsl._
     AuthedRoutes.of[UserEntity, IO] {
       case GET -> Root / "users" / userId / "secrets" as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
+        validateUserIdAndHandleErrors(userId, user, (userId: Long) => {
           for {
             secrets <- secretService.getUserOwnedSecrets(userId)
             resp <- Ok(secrets.map(s => Secret(s.id, s.ownerId, s.secretText)).asJson)
           } yield resp
-        )
+        })
       case GET -> Root / "users" / userId / "secrets" / secretIdString as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
-          try {
-            val secretId = secretIdString.toLong
-            for {
-              secrets <- secretService.getUserOwnedSecret(userId, secretId)
-              resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
-            } yield resp
-          } catch {
-            case _: NumberFormatException =>
-              BadRequest()
-
-          }
-        )
+        validateUserIdAndHandleErrors(userId, user, (userId: Long) => {
+          val secretId = secretIdString.toLong
+          for {
+            secrets <- secretService.getUserOwnedSecret(userId, secretId)
+            resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
+          } yield resp
+        })
       case authReq@POST -> Root / "users" / userId / "secrets" as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
+        validateUserIdAndHandleErrors(userId, user, (userId: Long) => {
           for {
             secretCreate <- authReq.req.as[SecretCreate]
             secret <- secretService.createNewSecret(SecretCreateEntity(userId, secretCreate.secretText))
             response <- Ok(Secret(secret.id, secret.ownerId, secret.secretText))
           } yield response
-        )
-      case GET -> Root / "users" / userId / "sharedsecrets" as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
+        })
+      case GET -> Root / "users" / userIdString / "sharedsecrets" as user =>
+        validateUserIdAndHandleErrors(userIdString, user, (userId: Long) => {
           for {
             secrets <- sharedSecretService.getSharedSecrets(userId)
             resp <- Ok(secrets.map(s => Secret(s.id, s.ownerId, s.secretText)).asJson)
           } yield resp
-        )
-      case authReq@POST -> Root / "users" / userId / "sharedsecrets"/ secretIdString as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
-          try {
-            val secretId = secretIdString.toLong
-            for {
-              shareSecret <- authReq.req.as[ShareSecret]
-              sharedSecretEntity = SharedSecretEntity(shareSecret.userId, secretId)
-              sharedSecretResp <- sharedSecretService.shareSecret(userId, sharedSecretEntity)
-              response <- Ok(SharedSecret(sharedSecretResp.userId, sharedSecretResp.secretId))
-            } yield response
-          } catch {
-            case _: NumberFormatException =>
-              BadRequest()
-          }
-        )
+        })
+      case authReq@POST -> Root / "users" / userIdString / "sharedsecrets"/ secretIdString as user =>
+        validateUserIdAndHandleErrors(userIdString, user, (userId: Long) => {
+          val secretId = secretIdString.toLong
+          for {
+            shareSecret <- authReq.req.as[ShareSecret]
+            sharedSecretEntity = SharedSecretEntity(shareSecret.userId, secretId)
+            sharedSecretResp <- sharedSecretService.shareSecret(userId, sharedSecretEntity)
+            response <- Ok(SharedSecret(sharedSecretResp.userId, sharedSecretResp.secretId))
+          } yield response
+        })
       case GET -> Root / "users" / userId / "sharedsecrets" / secretIdString as user =>
-        checkUserIdAuthorised(userId, user, (userId: Long) =>
-          try {
-            val secretId = secretIdString.toLong
-            for {
-              secrets <- sharedSecretService.getSharedSecret(userId, secretId)
-              resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
-            } yield resp
-          } catch {
-            case _: NumberFormatException =>
-              BadRequest()
-          }
-        )
-    }
-  }
-
-  def helloWorldRoutes[F[_] : Sync](H: HelloWorld[F]): HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F] {}
-    import dsl._
-    HttpRoutes.of[F] {
-      case GET -> Root / "hello" / name =>
-        for {
-          greeting <- H.hello(HelloWorld.Name(name))
-          resp <- Ok(greeting)
-        } yield resp
+        validateUserIdAndHandleErrors(userId, user, (userId: Long) => {
+          val secretId = secretIdString.toLong
+          for {
+            secrets <- sharedSecretService.getSharedSecret(userId, secretId)
+            resp <- secrets.map(s => Ok(Secret(s.id, s.ownerId, s.secretText))).getOrElse(NotFound())
+          } yield resp
+        })
     }
   }
 

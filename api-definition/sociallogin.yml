@@ -132,6 +132,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GeneralError'
+    Forbidden:
+      description: Forbidden.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GeneralError'
     NotFound:
       description: Resource Not found.
       content:
@@ -186,6 +192,8 @@ paths:
                   $ref: '#/components/schemas/Secret'
         '401':
           $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -206,11 +214,35 @@ paths:
                 $ref: '#/components/schemas/Secret'
         '401':
           $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
           $ref: '#/components/responses/GeneralError'
-  #TODO - Review these URLs
+  /user/{userId}/secrets/{secretId}:
+    parameters:
+      - $ref: '#/components/parameters/userIdParam'
+      - $ref: '#/components/parameters/secretIdParam'
+    get:
+      description: Returns the specified owned secret
+      responses:
+        '200':
+          description: A secrets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
   /user/{userId}/sharedsecrets:
     parameters:
       - $ref: '#/components/parameters/userIdParam'
@@ -227,6 +259,8 @@ paths:
                   $ref: '#/components/schemas/Secret'
         '401':
           $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -248,6 +282,8 @@ paths:
                   $ref: '#/components/schemas/Secret'
         '401':
           $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -264,6 +300,8 @@ paths:
           description: Successfully shared secret.
         '401':
           $ref: '#/components/responses/NotAuthorised'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         default:

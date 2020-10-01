@@ -44,7 +44,6 @@ object SocialLoginServer {
   def stream(implicit T: Timer[IO], C: ContextShift[IO]): Stream[IO, Nothing] = {
     for {
       client <- BlazeClientBuilder[IO](global).stream
-      helloWorldAlg = HelloWorld.impl[IO]
       userRepo = new UserRepository()
       authService = new AuthenticationService(userRepo)
       authenticateWithFriendPermissionMiddleware = AuthMiddleware.withFallThrough(permissionUser(authService))
@@ -60,7 +59,6 @@ object SocialLoginServer {
       httpApp = (
         authenticateWithFriendPermissionMiddleware(SocialLoginRoutes.loginRoutesWithFriendPermission(authService))  <+>
         SocialLoginRoutes.loginRoutesNoFriendPermission(authService)  <+>
-        SocialLoginRoutes.helloWorldRoutes[IO](helloWorldAlg) <+>
         authedUserActionMiddleware(SocialLoginRoutes.secretRoutes(secretService, sharedSecretService))
       ).orNotFound
 
