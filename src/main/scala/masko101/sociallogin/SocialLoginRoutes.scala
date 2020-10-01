@@ -13,7 +13,7 @@ import masko101.sociallogin.model.{SecretCreateEntity, SharedSecretEntity, UserE
 
 object SocialLoginRoutes {
 
-  //TODO - replace with middleware for auth
+  //TODO - replace with middleware for validation and error
   def validateUserIdAndHandleErrors(reqUserId: String, authUser: UserEntity, f: Long => IO[Response[IO]]):
   IO[Response[IO]] = {
 
